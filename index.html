@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>客户分析链路优化工作台</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="engine.js"></script>
+  <script defer src="data.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M4 4v16h16M8 16v-4m5 4V7m5 9v-6"/></symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8m-8 4h6"/></symbol>
+    <symbol id="icon-link" viewBox="0 0 24 24"><path d="m10 13 4-4m-5 7-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2-1 2-2a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"/></symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 3 2.8 6.2L21 12l-6.2 2.8L12 21l-2.8-6.2L3 12l6.2-2.8z"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="icon-box" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 8v9l9 5 9-5V8M12 13v9"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="m16 3 5 5-12 12-6 1 1-6zM14 5l5 5"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="icon-warning" viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5m0 3h.01"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+  <header class="topbar">
+    <div class="brand"><a class="brand-link" href="#workbench" aria-label="客户分析链路优化工作台"><span class="brand-mark"><svg><use href="#icon-grid"/></svg></span><h1 class="brand-title">客户分析链路优化工作台</h1></a></div>
+    <nav class="page-nav" aria-label="平台页面">
+      <button class="active" data-view="workbench"><svg><use href="#icon-edit"/></svg>标注工作台</button>
+      <button data-view="results"><svg><use href="#icon-chart"/></svg>标注结果</button>
+    </nav>
+    <div class="topbar-right"><div id="workspace-progress" class="workspace-progress" aria-label="当前 Case 包提交进度"></div><button id="export-results" class="button" hidden><svg><use href="#icon-download"/></svg>导出筛选结果</button><span class="demo-badge">交互原型 · 模拟数据</span><span class="avatar small">周</span><span class="current-user">周宁<span>评测复核人</span></span></div>
+  </header>
+  <main>
+    <section id="workbench">
+      <div class="workbench-grid">
+        <aside class="case-sidebar panel">
+          <div class="sidebar-pack">
+            <div class="section-label">待标注 Case 包</div>
+            <button id="pack-picker" aria-haspopup="true" aria-expanded="false" aria-controls="pack-menu"></button>
+            <div id="pack-menu" class="pack-menu" hidden></div>
+            <div id="pack-meta" class="pack-meta"></div>
+          </div>
+          <div class="case-filter">
+            <div class="section-heading"><h2>客户 Case</h2><span id="case-count"></span></div>
+            <label class="search-box"><svg><use href="#icon-search"/></svg><input id="case-search" placeholder="搜索客户 / Case 编号" aria-label="搜索客户案例"></label>
+            <div class="case-status-tabs"><button data-case-filter="all" class="active">全部</button><button data-case-filter="pending">待复核</button><button data-case-filter="submitted">已提交</button></div>
+          </div>
+          <div id="case-list" class="cases-scroll"></div>
+          <div class="sidebar-footer"><svg><use href="#icon-info"/></svg><span>每条 Case 由一位复核人负责<br>整条提交后才进入结果统计</span></div>
+        </aside>
+        <section class="case-detail panel">
+          <div id="case-heading" class="case-heading"></div>
+          <div id="node-tabs" class="node-tabs" role="tablist" aria-label="链路节点"></div>
+          <div class="inspection-grid">
+            <section id="evidence-panel" class="evidence-panel" aria-label="节点输入输出数据"></section>
+            <section class="review-column" aria-label="评估与人工标注">
+              <div class="review-heading"><div><svg><use href="#icon-spark"/></svg><h2>评估与人工复核</h2></div><span id="review-count"></span></div>
+              <div id="review-panel" class="review-scroll"></div>
+            </section>
+          </div>
+          <footer class="review-footer"><div id="save-status" aria-live="polite"></div><div class="footer-actions"><button id="save-draft" class="button">保存草稿</button><button id="confirm-node" class="button primary">确认本节点<svg><use href="#icon-arrow"/></svg></button></div></footer>
+        </section>
+      </div>
+    </section>
+    <section id="results" hidden>
+      <div class="result-filters panel">
+        <label>Case 包<select id="result-pack" aria-label="筛选 Case 包"></select></label>
+        <label>链路节点<select id="result-module" aria-label="筛选链路节点"></select></label>
+        <label>评估准确性<select id="result-accuracy" aria-label="筛选评估准确性"><option value="all">全部评估结论</option><option value="agree">准确 · 人工确认</option><option value="disagree">不准确 · 人工改判</option><option value="unknown">资料不足 · 未确认</option></select></label>
+        <label>Agent 问题分类<select id="result-issue" aria-label="筛选 Agent 问题分类"></select></label>
+        <label>复核人<select id="result-reviewer" aria-label="筛选复核人"></select></label>
+        <div class="filter-search">搜索<label class="search-box"><svg><use href="#icon-search"/></svg><input id="result-search" placeholder="客户 / Case / 标注项" aria-label="搜索标注结果"></label></div>
+        <button id="reset-filters" class="text-button">重置</button>
+        <details class="date-filters"><summary>更多筛选</summary><div><label>评估模型问题<select id="result-judge-issue" aria-label="筛选评估模型问题"></select></label><label>提交起始日期<input type="date" id="result-from" aria-label="提交起始日期"></label><span>至</span><label>提交结束日期<input type="date" id="result-to" aria-label="提交结束日期"></label></div></details>
+      </div>
+      <div class="scope-note"><span class="live-dot"></span><span id="result-scope"></span><span>仅已提交人工结果计入聚合 · 未评 / 证据不足按指标口径单列</span></div>
+      <div id="summary-grid" class="summary-grid"></div>
+      <section class="module-overview"><div class="section-heading"><h2>六模块评测表现</h2><span>人工复核与 AI 原判对照 · 点击模块筛选</span></div><div id="module-metrics" class="module-metrics"></div><details id="metric-details" class="metric-details panel"><summary><span>展开指标明细与计算口径</span><span class="muted">不合并不同粒度的指标 <svg><use href="#icon-chevron"/></svg></span></summary><div id="all-metrics"></div></details></section>
+      <section class="result-list panel">
+        <div class="list-toolbar"><div class="result-mode-tabs"><button data-result-mode="all" class="active">全部标注<span id="all-row-count"></span></button><button data-result-mode="bad">仅 Agent 问题</button><button data-result-mode="correction">仅评估改判</button></div><span class="muted">一行对应一个标注项 · Case 数去重统计</span></div>
+        <div class="table-scroll"><table id="results-table"><thead><tr><th>客户 / Case</th><th>模型版本</th><th>节点 / 标注项</th><th>AI 原判 → 人工结论</th><th>评估准确性</th><th>Agent 问题分类</th><th>复核人 / 时间</th><th></th></tr></thead><tbody></tbody></table></div>
+        <footer class="pagination"><span id="pagination-summary"></span><div><button id="previous-page" class="button compact">上一页</button><span id="pagination-page"></span><button id="next-page" class="button compact">下一页</button></div></footer>
+      </section>
+      <p class="results-footnote">所有客户、版本、策略、素材与标注结果均为演示数据。策略适配阈值及具体等级锚点尚待确认，原型不生成未经确认的通过率。</p>
+    </section>
+  </main>
+  <dialog id="action-dialog"><form method="dialog"><div class="dialog-icon"><svg><use href="#icon-info"/></svg></div><h2 id="dialog-title"></h2><p id="dialog-description"></p><div id="dialog-content"></div><div class="dialog-actions"><button class="button" value="cancel">取消</button><button id="dialog-confirm" class="button primary" value="confirm">确认</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
