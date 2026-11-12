@@ -8,13 +8,24 @@
     { id: 'M6', title: '电话与企微文案', short: '沟通文案', description: '逐版核对策略落实、素材一致性、可用性与合规。' },
   ];
   const packs = [
-    { id: 'pack-320', title: '客户分析 · 本轮迭代', version: '3.2.0', date: '2026-11-11', judge: 'Judge 1.4.0', standard: '评测标准 0.3', prompt: 'CA-prompt 3.2', count: 8 },
-    { id: 'pack-310', title: '客户分析 · 上轮基线', version: '3.1.0', date: '2026-11-10', judge: 'Judge 1.4.0', standard: '评测标准 0.3', prompt: 'CA-prompt 3.1', count: 6 },
+    { id: 'pack-320', title: '客户分析 · 本轮迭代', datasetVersion: '2026-11-11', version: '3.2.0', date: '2026-11-11', frozenAt: '2026-11-11', judge: 'Judge 1.4.0', standard: '评测标准 0.3 · 策略三档', prompt: 'CA-prompt 3.2', count: 8 },
+    { id: 'pack-310', title: '客户分析 · 上轮基线', datasetVersion: '2026-11-10', version: '3.1.0', date: '2026-11-10', frozenAt: '2026-11-10', judge: 'Judge 1.4.0', standard: '评测标准 0.3 · 策略三档', prompt: 'CA-prompt 3.1', count: 6 },
   ];
   const judgeIssues = ['误判为正确', '误判为错误', '等级偏高', '等级偏低', '依据引用错误', '判断理由不成立', '遗漏评估项'];
-  const agentIssues = ['上游判断', '路由或检索', '选择或分支', '策略供给', '详情或数据', 'Query 问题', '搜索问题', '素材选择问题', '内容供给不足', '卡点判断错误', '关键问题遗漏', '优先级不合理', '状态判断错误', '行动承接错误', '事实无依据', '目标偏离', '方案未落实', '话术未落实', '素材不一致', '话术需修改', '线上行为披露', '无依据事实或承诺'];
+  const issuesByModule = {
+    M1: ['状态判断错误', '行动承接错误', '事实无依据'],
+    M2: ['卡点判断错误', '关键问题遗漏', '优先级不合理'],
+    M3: ['Query 问题', '搜索问题', '素材选择问题', '素材供给不足'],
+    M4: ['策略查询条件错误', '策略候选遗漏', '策略选择错误', '打法分支错误', '策略供给不足'],
+    M5: ['目标偏离', '方案未落实'],
+    M6: ['话术未落实', '素材不一致', '话术需修改', '线上行为披露', '无依据事实或承诺'],
+  };
+  const agentIssues = Object.values(issuesByModule).flat();
   const reviewers = ['评测 · 周宁', '业务 · 李悦', '研发 · 赵然'];
   const grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', '证据不足'];
+  const strategyGrades = ['1 分', '2 分', '3 分', '证据不足'];
+  const samplingTypes = ['已使用 · 负反馈', '未使用 · 正反馈'];
+  const materialModes = [{ value: 'direct', label: '非兜底 · 正常选用' }, { value: 'fallback', label: '兜底选用' }, { value: 'none', label: '未选用素材' }];
   const correctOptions = ['正确', '错误', '证据不足'];
   const profiles = [
     ['陈先生', '理想 L9', '家庭用车', '已完成试驾', '家庭空间', '希望带家人再体验一次，先看后排空间视频'],
@@ -71,6 +82,7 @@
       { id: 'DEMO-STR-207', title: trial ? '共同决策人参与复试驾' : '先资料后反馈', subtitle: '候选策略 · 承接已有进展', branch: correctBranch, applicable: trial ? '已完成试驾，接受进一步体验，需家人参与' : '客户希望先看资料再决定是否到店', exclude: '无客户意愿依据，不应新增邀请', action: `先发送${topic}资料，确认反馈，再按客户意愿推进。`, selected: false },
       { id: 'DEMO-STR-312', title: '低打扰信息跟进', subtitle: '候选策略 · 尊重沟通限制', branch: '只看资料 · 暂不电话', applicable: '客户明确希望先看资料，或当前不便电话', exclude: '已有紧急待办需先处理', action: '发送已确认资料，避免连续追问，等待客户反馈。', selected: false },
     ];
+    if ([1, 2, 4, 8, 10].includes(index)) strategies[1].selected = true;
     const nodes = {
       M1: {
         input: { customer_information: { information: { model, purpose, stage, topic }, revision: 'demo-profile-r12' }, records: evidence },
@@ -89,8 +101,8 @@
       },
       M4: {
         input: { customer_state: `${stage}；${request}`, main_issue: `${topic}需要进一步确认`, scene: '考虑与比较', node: topic, strategy_library_version: '模拟策略快照 2026-11-10' },
-        output: { candidates: strategies, strategy_id: strategies[0].id, decision: { concrete_help: strategies[0].action, next_step: special ? '邀请首次到店试驾' : '承接客户认可的下一步安排' }, selected_branch: selectedBranch, independent_review: { scope: '本模拟快照中展示的 3 条策略', reference_ids: [strategies[0].id, strategies[1].id] } },
-        items: [assessment('strategy-query', 'strategyQuery', '策略查询条件是否合理', '查询 · 场景与问题方向', '合理', ['合理', '不合理', '证据不足'], '查询主题与客户主要诉求一致，保留适用策略范围。'), ...strategies.slice(0, 2).map((strategy, strategyIndex) => assessment(`strategy-coverage-${strategyIndex}`, 'strategyCoverage', '适用策略是否被候选覆盖', `人工参考策略 · ${strategy.title}`, '已覆盖', ['已覆盖', '遗漏', '证据不足'], '独立审查认可的适用策略出现在本次候选中。', { expectedCount: 2 })), assessment('strategy-grade', 'grade', '当前策略适配得分', '实际策略方案 · 所选策略与动作', 'Grade 4', grades, special ? '所选策略围绕客户的关注点提供场景体验，主题匹配，具备针对性。' : '策略与客户状态、问题和后续安排匹配。'), assessment('strategy-branch', 'branch', '打法分支与动作是否正确', '实际分支 · 最终采用动作', special ? '错误' : '正确', correctOptions, special ? '已完成试驾且接受复试驾，当前动作却重新激发首次兴趣。' : '分支尊重当前意愿并承接已有安排。'), assessment('strategy-alternative', 'alternative', '库内是否存在明确更优方案', '独立审查 · 同版可见候选', special ? '存在明确更优' : '当前合理优选', ['当前合理优选', '存在相当方案', '存在明确更优', '当前不适用且有替代', '已确认无适用方法', '审查不足'], special ? '共同决策人参与复试驾更直接承接客户当前进展。' : '在已查的候选范围内，当前方案合理。')],
+        output: { candidates: strategies, strategy_ids: strategies.filter(strategy => strategy.selected).map(strategy => strategy.id), strategy_id: strategies[0].id, decision: { concrete_help: strategies.filter(strategy => strategy.selected).map(strategy => strategy.action).join('；'), next_step: special ? '邀请首次到店试驾' : '承接客户认可的下一步安排' }, selected_branch: selectedBranch, independent_review: { scope: '本模拟快照中展示的 3 条策略', reference_ids: [strategies[0].id, strategies[1].id] } },
+        items: [assessment('strategy-query', 'strategyQuery', '策略查询条件是否合理', '查询 · 场景与问题方向', '合理', ['合理', '不合理', '证据不足'], '查询主题与客户主要诉求一致，保留适用策略范围。'), ...strategies.slice(0, 2).map((strategy, strategyIndex) => assessment(`strategy-coverage-${strategyIndex}`, 'strategyCoverage', '适用策略是否被候选覆盖', `人工参考策略 · ${strategy.title}`, '已覆盖', ['已覆盖', '遗漏', '证据不足'], '独立审查认可的适用策略出现在本次候选中。', { expectedCount: 2 })), assessment('strategy-grade', 'grade', '客户策略组合适配得分', '客户粒度 · 全部实际采用策略与动作', special ? '2 分' : '3 分', strategyGrades, special ? '主题适配，但共同决策人参与复试驾可能是更优方案。初评尚未识别实际分支冲突。' : '实际采用策略共同承接客户状态、主要问题及已有安排，在本模拟候选范围内为合理优选。'), assessment('strategy-branch', 'branch', '打法分支与动作是否正确', '实际策略组合 · 分支与最终动作', special ? '错误' : '正确', correctOptions, special ? '已完成试驾且接受复试驾，当前动作却重新激发首次兴趣。' : '各采用分支均尊重当前意愿并承接已有安排。'), assessment('strategy-alternative', 'alternative', '库内是否存在明确更优方案', '独立审查 · 同版可见候选', special ? '存在明确更优' : '当前合理优选', ['当前合理优选', '存在相当方案', '存在明确更优', '当前不适用且有替代', '已确认无适用方法', '审查不足'], special ? '共同决策人参与复试驾更直接承接客户当前进展。' : '在已查的候选范围内，当前方案合理。')],
       },
       M5: {
         input: { customer_state: stage, strategy_id: strategies[0].id, selected_branch: selectedBranch, decision: { concrete_help: strategies[0].action } },
@@ -105,19 +117,46 @@
     };
     if (index === 3) nodes.M2.output.decision.main_issue = '优先重新收集家庭用车诉求，再考虑是否安排旧车评估；暂未承接已接受的评估安排。';
     if (index === 2) nodes.M1.items[0].ai = '错误';
-    if (index === 12) {
-      nodes.M3.input = { material_need: '客户已明确不需要更多素材，只确认时间' };
-      nodes.M3.output = { execution: '未执行', reason: '本轮无需素材，按需跳过检索' };
+    nodes.M3.output.requests = [{ id: 'Q01', query: nodes.M3.input.semantic_query, result: 'success', materials, fallback: false }];
+    nodes.M3.output.materialMode = 'direct';
+    nodes.M3.output.execution = '已搜索';
+    if (special) {
+      const fallbackMaterial = { ...materials[2], position: 1, selected: true };
+      nodes.M3.output = { execution: '已搜索', materialMode: 'fallback', reason: '合理 Query 未召回素材，随后按车型检索兜底素材。需结合两次请求判断供给缺口。', requests: [{ id: 'Q01', query: nodes.M3.input.semantic_query, result: 'success', materials: [], fallback: false }, { id: 'Q02', query: `${model} 外观配色实拍`, result: 'success', materials: [fallbackMaterial], fallback: true }], materials: [fallbackMaterial], material_ids: [fallbackMaterial.materialId], final_materials: [fallbackMaterial] };
+      nodes.M3.items = [assessment('query-0', 'query', '首次 Query 构造是否合理', '搜索请求 · Q01', '是', ['是', '否', '证据不足'], '车型与主题对应客户诉求，但本次返回为空。', { requestId: 'Q01', result: 'success', returnedCount: 0 }), assessment('query-1', 'query', '兜底 Query 是否承接检索过程', '搜索请求 · Q02', '是', ['是', '否', '证据不足'], '本轮因首次未召回而按车型兜底；是否满足客户问题，需独立检查素材内容。', { requestId: 'Q02', result: 'success', returnedCount: 1 }), assessment('material-fallback', 'materialGrade', '兜底素材相关性等级', `素材 · ${fallbackMaterial.title}`, 'Grade 2', grades, '车型匹配，但外观实拍不回应客户当前主题，不因兜底而提高相关性等级。', { requestId: 'Q02', position: 1 })];
+      nodes.M6.input.materials = [fallbackMaterial];
+      nodes.M6.output.wecom_suggestion.message = `关于您提到的${topic}，我记下了需要确认的问题。这是${model}外观配色实拍，供您参考。`;
+    }
+    if (index === 7 || index === 12) {
+      const reason = index === 7 ? '缺少正确专家 ID，未执行素材搜索' : '客户明确无需素材，只确认复试驾时间';
+      nodes.M3.input = { material_need: index === 7 ? nodes.M3.input.material_need : '客户已明确不需要更多素材，只确认时间' };
+      nodes.M3.output = { execution: '未执行', materialMode: 'none', reason, requests: [], final_materials: [] };
       nodes.M3.items = [];
     }
-    return { id: caseId, packId, name, model, purpose, stage, topic, request, evidence, nodes, analysisTime: `${index < 8 ? '2026-11-11' : '2026-11-10'} 09:${String(12 + order).padStart(2, '0')}`, trigger: '新增客户沟通', evalStatus: index === 5 ? 'failed' : 'completed', assignedTo: index === 0 ? '评测 · 周宁' : '' };
+    if (index === 12) {
+      nodes.M3.input = { material_need: '客户已明确不需要更多素材，只确认时间' };
+      nodes.M3.output = { execution: '未执行', materialMode: 'none', reason: '本轮无需素材，按需跳过检索', requests: [], final_materials: [] };
+      nodes.M3.items = [];
+    }
+    const selectedStrategies = strategies.filter(strategy => strategy.selected);
+    nodes.M5.input.strategy_ids = selectedStrategies.map(strategy => strategy.id);
+    nodes.M6.input.strategy_ids = selectedStrategies.map(strategy => strategy.id);
+    nodes.M5.input.decision.concrete_help = selectedStrategies.map(strategy => strategy.action).join('；');
+    nodes.M5.output.follow_strategy.content = nodes.M5.input.decision.concrete_help;
+    nodes.M5.output.final_output.followStrategy.content = nodes.M5.input.decision.concrete_help;
+    if (!nodes.M3.output.final_materials.length) {
+      nodes.M6.input.materials = [];
+      nodes.M6.output.wecom_suggestion.message = nodes.M6.output.wecom_suggestion.messageWithoutMaterial;
+      nodes.M6.items.filter(item => item.key === 'consistency').forEach(item => { item.ai = '不适用'; item.reason = '本轮未选用素材，文案不依赖附件。'; });
+    }
+    return { id: caseId, packId, name, model, purpose, stage, topic, request, evidence, nodes, sampling: samplingTypes[index % 2], information: index === 6 ? '资料不完整' : '资料完整', analysisTime: `${index < 8 ? '2026-11-11' : '2026-11-10'} 09:${String(12 + order).padStart(2, '0')}`, trigger: '新增客户沟通', evalStatus: index === 5 ? 'failed' : 'completed', assignedTo: index === 0 ? '评测 · 周宁' : '' };
   }
 
   const cases = profiles.map(makeCase);
 
   function initialState() {
-    const state = { schema: 1, pack: packs[0].id, caseId: cases[0].id, node: 'M4', reviews: {}, submissions: {}, history: [], recovered: [] };
-    const agree = item => ({ accuracy: 'agree', human: item.ai, judgeIssue: '', agentIssue: root.AnnotationEngine.isBad({ human: item.ai }) ? ({ branch: '选择或分支', alternative: '选择或分支', target: '目标偏离' }[item.key] || '上游判断') : '', reason: '', evidence: item.evidence });
+    const state = { schema: 2, demoSamples: 1, pack: packs[0].id, caseId: cases[0].id, node: 'M4', reviews: {}, submissions: {}, history: [], recovered: [] };
+    const agree = item => ({ accuracy: 'agree', human: item.ai, judgeIssue: '', agentIssue: root.AnnotationEngine.isBad({ key: item.key, human: item.ai }) ? ({ branch: '打法分支错误', target: '目标偏离', status: '状态判断错误' }[item.key] || '') : '', reason: item.key === 'grade' && item.ai === '2 分' ? item.reason : '', evidence: item.evidence });
     [2, 3, 4, 6, 8, 9].forEach((caseIndex, submittedIndex) => {
       const customer = cases[caseIndex];
       state.reviews[customer.id] = {};
@@ -133,12 +172,13 @@
     [0, 1].forEach(materialIndex => {
       state.reviews[cases[8].id].M3[`material-${materialIndex}`] = { accuracy: 'disagree', human: `Grade ${materialIndex + 2}`, judgeIssue: '等级偏高', agentIssue: '搜索问题', reason: '模拟素材的实际展示内容未覆盖本轮主要场景，初评相关性等级偏高。', evidence: 'E02' };
     });
-    state.reviews[cases[9].id].M4['strategy-grade'] = { accuracy: 'disagree', human: 'Grade 2', judgeIssue: '等级偏高', agentIssue: '选择或分支', reason: '策略主题虽然相关，实际采用分支却重置了客户已经接受的复试驾进展。', evidence: 'E02' };
+    state.reviews[cases[9].id].M4['strategy-grade'] = { accuracy: 'disagree', human: '1 分', judgeIssue: '等级偏高', agentIssue: '打法分支错误', reason: '策略主题虽然相关，实际采用分支却重置了客户已经接受的复试驾进展。', evidence: 'E02' };
     state.reviews[cases[0].id] = {};
     ['M1', 'M2', 'M3', 'M4'].forEach(node => { state.reviews[cases[0].id][node] = Object.fromEntries(cases[0].nodes[node].items.map(item => [item.id, agree(item)])); });
-    state.reviews[cases[0].id].M4['strategy-grade'] = { accuracy: 'disagree', human: 'Grade 2', judgeIssue: '等级偏高', agentIssue: '选择或分支', reason: '客户已完成试驾，并明确愿意带家人复试驾。AI 只检查了策略主题，忽略了“首次体验”分支与已有进展的冲突。', evidence: 'E02' };
+    state.reviews[cases[0].id].M4['strategy-grade'] = { accuracy: 'disagree', human: '1 分', judgeIssue: '等级偏高', agentIssue: '打法分支错误', reason: '客户已完成试驾，并明确愿意带家人复试驾。AI 只检查了策略主题，忽略了“首次体验”分支与已有进展的冲突。', evidence: 'E02', alternativeIds: ['DEMO-STR-207'] };
+    Object.entries(state.submissions).forEach(([caseId, submission]) => { submission.reviewedModules = modules.map(module => module.id); submission.snapshot = structuredClone(state.reviews[caseId]); });
     return state;
   }
 
-  root.AnnotationDemo = { modules, packs, cases, judgeIssues, agentIssues, reviewers, initialState };
+  root.AnnotationDemo = { modules, packs, cases, judgeIssues, agentIssues, issuesByModule, reviewers, samplingTypes, materialModes, initialState };
 })(globalThis);

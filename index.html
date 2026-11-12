@@ -34,26 +34,31 @@
     <nav class="page-nav" aria-label="平台页面">
       <button class="active" data-view="workbench"><svg><use href="#icon-edit"/></svg>标注工作台</button>
       <button data-view="results"><svg><use href="#icon-chart"/></svg>标注结果</button>
+      <button data-view="regression"><svg><use href="#icon-arrow"/></svg>回归评测</button>
     </nav>
-    <div class="topbar-right"><div id="workspace-progress" class="workspace-progress" aria-label="当前 Case 包提交进度"></div><button id="export-results" class="button" hidden><svg><use href="#icon-download"/></svg>导出筛选结果</button><span class="demo-badge">交互原型 · 模拟数据</span><span class="avatar small">周</span><span class="current-user">周宁<span>评测复核人</span></span></div>
+    <div class="topbar-right"><div class="export-control"><button id="export-results" class="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" hidden><svg><use href="#icon-download"/></svg>导出<svg><use href="#icon-chevron"/></svg></button><div id="export-menu" class="export-menu" hidden><button id="export-csv">标注明细 CSV<small>导出当前列表的已提交标注项</small></button><button id="export-bundle">完整复核 Case 集<small>冻结输入输出、候选、已提交结论及汇总</small></button><button id="export-badcases">完整 badcase 子集<small>按 Case 去重，包含全部链路数据</small></button><button id="export-report">评测汇总报告<small>当前结果范围、指标与节点问题汇总</small></button></div></div><span class="demo-badge">交互原型 · 模拟数据</span><span class="avatar small">周</span><span class="current-user">周宁<span>评测复核人</span></span></div>
   </header>
   <main>
     <section id="workbench">
       <div class="workbench-grid">
         <aside class="case-sidebar panel">
           <div class="sidebar-pack">
-            <div class="section-label">待标注 Case 包</div>
-            <button id="pack-picker" aria-haspopup="true" aria-expanded="false" aria-controls="pack-menu"></button>
+            <div id="pack-card" class="pack-card">
+              <div class="pack-card-heading"><span class="section-label">待标注 Case 包</span><button id="pack-picker" class="pack-switch" aria-label="切换 Case 包" aria-haspopup="true" aria-expanded="false" aria-controls="pack-menu">切换 <svg><use href="#icon-chevron"/></svg></button></div>
+              <div id="pack-info"></div>
+              <div id="pack-meta" class="pack-meta"></div>
+              <div id="workspace-progress" class="workspace-progress" aria-label="当前 Case 包提交进度"></div>
+            </div>
             <div id="pack-menu" class="pack-menu" hidden></div>
-            <div id="pack-meta" class="pack-meta"></div>
           </div>
           <div class="case-filter">
             <div class="section-heading"><h2>客户 Case</h2><span id="case-count"></span></div>
             <label class="search-box"><svg><use href="#icon-search"/></svg><input id="case-search" placeholder="搜索客户 / Case 编号" aria-label="搜索客户案例"></label>
             <div class="case-status-tabs"><button data-case-filter="all" class="active">全部</button><button data-case-filter="pending">待复核</button><button data-case-filter="submitted">已提交</button></div>
+            <details class="case-extra-filters"><summary>抽样与阶段筛选</summary><label>抽样来源<select id="case-sampling" aria-label="筛选候选抽样来源"></select></label><label>客户阶段<select id="case-stage" aria-label="筛选候选客户阶段"></select></label><label>信息情况<select id="case-information" aria-label="筛选候选信息情况"></select></label></details>
           </div>
           <div id="case-list" class="cases-scroll"></div>
-          <div class="sidebar-footer"><svg><use href="#icon-info"/></svg><span>每条 Case 由一位复核人负责<br>整条提交后才进入结果统计</span></div>
+          <div class="sidebar-footer"><svg><use href="#icon-info"/></svg><span>本机演示，尚未多人同步<br>整条提交后才进入统计</span></div>
         </aside>
         <section class="case-detail panel">
           <div id="case-heading" class="case-heading"></div>
@@ -62,33 +67,34 @@
             <section id="evidence-panel" class="evidence-panel" aria-label="节点输入输出数据"></section>
             <section class="review-column" aria-label="评估与人工标注">
               <div class="review-heading"><div><svg><use href="#icon-spark"/></svg><h2>评估与人工复核</h2></div><span id="review-count"></span></div>
-              <div id="review-panel" class="review-scroll"></div>
+              <div id="question-tabs" class="question-tabs" role="tablist" aria-label="评估问题"></div>
+              <div id="review-panel" class="review-scroll" role="tabpanel"></div>
             </section>
           </div>
-          <footer class="review-footer"><div id="save-status" aria-live="polite"></div><div class="footer-actions"><button id="save-draft" class="button">保存草稿</button><button id="confirm-node" class="button primary">确认本节点<svg><use href="#icon-arrow"/></svg></button></div></footer>
+          <footer class="review-footer"><div id="save-status" aria-live="polite"></div><div class="footer-actions"><button id="save-draft" class="button">保存草稿</button><button id="confirm-node" class="button primary" title="保存本节点；尚未标注的问题按 AI 原判一致确认">确认本节点<svg><use href="#icon-arrow"/></svg></button></div></footer>
         </section>
       </div>
     </section>
     <section id="results" hidden>
-      <div class="result-filters panel">
-        <label>Case 包<select id="result-pack" aria-label="筛选 Case 包"></select></label>
-        <label>链路节点<select id="result-module" aria-label="筛选链路节点"></select></label>
-        <label>评估准确性<select id="result-accuracy" aria-label="筛选评估准确性"><option value="all">全部评估结论</option><option value="agree">准确 · 人工确认</option><option value="disagree">不准确 · 人工改判</option><option value="unknown">资料不足 · 未确认</option></select></label>
-        <label>Agent 问题分类<select id="result-issue" aria-label="筛选 Agent 问题分类"></select></label>
-        <label>复核人<select id="result-reviewer" aria-label="筛选复核人"></select></label>
-        <div class="filter-search">搜索<label class="search-box"><svg><use href="#icon-search"/></svg><input id="result-search" placeholder="客户 / Case / 标注项" aria-label="搜索标注结果"></label></div>
-        <button id="reset-filters" class="text-button">重置</button>
-        <details class="date-filters"><summary>更多筛选</summary><div><label>评估模型问题<select id="result-judge-issue" aria-label="筛选评估模型问题"></select></label><label>提交起始日期<input type="date" id="result-from" aria-label="提交起始日期"></label><span>至</span><label>提交结束日期<input type="date" id="result-to" aria-label="提交结束日期"></label></div></details>
-      </div>
       <div class="scope-note"><span class="live-dot"></span><span id="result-scope"></span><span>仅已提交人工结果计入聚合 · 未评 / 证据不足按指标口径单列</span></div>
       <div id="summary-grid" class="summary-grid"></div>
       <section class="module-overview"><div class="section-heading"><h2>六模块评测表现</h2><span>人工复核与 AI 原判对照 · 点击模块筛选</span></div><div id="module-metrics" class="module-metrics"></div><details id="metric-details" class="metric-details panel"><summary><span>展开指标明细与计算口径</span><span class="muted">不合并不同粒度的指标 <svg><use href="#icon-chevron"/></svg></span></summary><div id="all-metrics"></div></details></section>
       <section class="result-list panel">
-        <div class="list-toolbar"><div class="result-mode-tabs"><button data-result-mode="all" class="active">全部标注<span id="all-row-count"></span></button><button data-result-mode="bad">仅 Agent 问题</button><button data-result-mode="correction">仅评估改判</button></div><span class="muted">一行对应一个标注项 · Case 数去重统计</span></div>
-        <div class="table-scroll"><table id="results-table"><thead><tr><th>客户 / Case</th><th>模型版本</th><th>节点 / 标注项</th><th>AI 原判 → 人工结论</th><th>评估准确性</th><th>Agent 问题分类</th><th>复核人 / 时间</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="list-toolbar"><div class="result-mode-tabs"><button data-result-mode="all" class="active">全部标注<span id="all-row-count"></span></button><button data-result-mode="bad">仅 Agent 问题</button><button data-result-mode="improvement">优选提升</button><button data-result-mode="correction">仅评估改判</button></div><span class="muted">问题按所在节点汇总 · Case 去重</span></div>
+        <div class="table-scroll"><table id="results-table"><thead><tr><th>客户 / Case</th><th>数据集 / 模型版本</th><th>节点 / 标注项</th><th>AI 原判 → 人工结论</th><th>评估准确性</th><th>节点问题</th><th>复核人 / 时间</th><th></th></tr></thead><tbody></tbody></table></div>
         <footer class="pagination"><span id="pagination-summary"></span><div><button id="previous-page" class="button compact">上一页</button><span id="pagination-page"></span><button id="next-page" class="button compact">下一页</button></div></footer>
       </section>
-      <p class="results-footnote">所有客户、版本、策略、素材与标注结果均为演示数据。策略适配阈值及具体等级锚点尚待确认，原型不生成未经确认的通过率。</p>
+      <p class="results-footnote">全部为模拟数据，尚未接入真实客户或多人共享服务。策略组合按三档评分：1 分需优化；2 分单列优选提升，不自动记为选错（badcase 入集口径待确认）；3 分适配且最优。有评估项的节点均需复核；未执行节点与证据不足单列。</p>
+    </section>
+    <section id="regression" hidden>
+      <div class="regression-heading"><div><h2>回归评测</h2><p>选择冻结 Case 包与输出模型版本，对照已提交的人工结论查看回归结果。</p></div><span class="badge blue">原型演示</span></div>
+      <section class="regression-controls panel" aria-label="回归配置">
+        <label>Case 包<select id="regression-pack" aria-label="选择回归 Case 包"></select></label>
+        <label>输出模型版本<select id="regression-version" aria-label="选择回归输出模型版本"></select></label>
+        <button id="run-regression" class="button primary">运行回归（原型）<svg><use href="#icon-arrow"/></svg></button>
+        <p>复用原型内已有模型输出，未调用真实回归服务。缺少对应版本输出时标为“待生成”；未提交人工标注的 Case 不参与一致率计算。</p>
+      </section>
+      <div id="regression-results" aria-live="polite"></div>
     </section>
   </main>
   <dialog id="action-dialog"><form method="dialog"><div class="dialog-icon"><svg><use href="#icon-info"/></svg></div><h2 id="dialog-title"></h2><p id="dialog-description"></p><div id="dialog-content"></div><div class="dialog-actions"><button class="button" value="cancel">取消</button><button id="dialog-confirm" class="button primary" value="confirm">确认</button></div></form></dialog>

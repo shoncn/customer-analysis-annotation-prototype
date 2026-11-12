@@ -1,10 +1,10 @@
 (function (root) {
   const insufficientValues = new Set(['证据不足', '无法核验', '审查不足']);
-  const badValues = new Set(['错误', '不合理', '不一致', '未落实', '不符合', '需修改', '违规', '遗漏', '已解决或失效', '与证据冲突', '无依据断言', '存在明确更优', '当前不适用且有替代', '否']);
+  const badValues = new Set(['错误', '不合理', '不一致', '未落实', '不符合', '需修改', '违规', '遗漏', '已解决或失效', '与证据冲突', '无依据断言', '当前不适用且有替代', '否']);
 
   function isBad(row) {
     if (insufficientValues.has(row.human) || row.human === '不适用') return false;
-    return badValues.has(row.human) || Boolean(row.agentIssue);
+    return (row.key === 'grade' && row.human === '1 分') || badValues.has(row.human) || Boolean(row.agentIssue);
   }
 
   function summarize(rows) {
@@ -13,7 +13,7 @@
     const agreed = judged.filter(row => row.accuracy === 'agree').length;
     return {
       cases: new Set(submitted.map(row => row.caseId)).size,
-      badcases: new Set(submitted.filter(isBad).map(row => row.caseId)).size,
+      badcases: new Set(submitted.filter(row => row.caseBad || isBad(row)).map(row => row.caseId)).size,
       rows: submitted.length,
       agreed,
       judged: judged.length,
@@ -26,6 +26,7 @@
   function filterRows(rows, filters = {}) {
     return rows.filter(row => {
       if (!row.submitted) return false;
+      if (['sampling', 'stage', 'information', 'materialMode', 'rootModule', 'rootIssue', 'datasetVersion'].some(key => filters[key] && filters[key] !== 'all' && row[key] !== filters[key])) return false;
       if (filters.pack && filters.pack !== 'all' && row.packId !== filters.pack) return false;
       if (filters.module && filters.module !== 'all' && row.module !== filters.module) return false;
       if (filters.accuracy && filters.accuracy !== 'all' && row.accuracy !== filters.accuracy) return false;
@@ -34,6 +35,7 @@
       if (filters.reviewer && filters.reviewer !== 'all' && row.reviewer !== filters.reviewer) return false;
       if (filters.mode === 'bad' && !isBad(row)) return false;
       if (filters.mode === 'correction' && row.accuracy !== 'disagree') return false;
+      if (filters.mode === 'improvement' && !(row.key === 'grade' && row.human === '2 分') && row.human !== '存在明确更优') return false;
       if (filters.from && (!row.reviewedAt || row.reviewedAt.slice(0, 10) < filters.from)) return false;
       if (filters.to && (!row.reviewedAt || row.reviewedAt.slice(0, 10) > filters.to)) return false;
       if (filters.search && ![row.caseId, row.name, row.title, row.reason].join(' ').toLowerCase().includes(filters.search.toLowerCase())) return false;
@@ -97,17 +99,89 @@
     if (review.accuracy === 'agree' && review.human !== item.ai) errors.push('确认一致时需保留 AI 原判');
     if (review.accuracy === 'disagree') {
       if (review.human === item.ai) errors.push('人工改判不能与 AI 原判相同');
-      if (!review.judgeIssue) errors.push('请选择评估模型问题分类');
       if (!review.reason?.trim()) errors.push('请填写改判理由');
-      if (!review.evidence) errors.push('请引用依据');
     }
     if (review.accuracy === 'unknown') {
       if (!insufficientValues.has(review.human)) errors.push('资料不足需选择对应的未明确结论');
       if (!review.reason?.trim()) errors.push('请说明缺失资料');
-      if (!review.evidence) errors.push('请选择缺失的资料来源');
     }
-    if (isBad(review) && !review.agentIssue && item.key === 'grade') errors.push('请明确策略问题分类，不凭等级自动判 badcase');
+    if (item.key === 'grade' && ['1 分', '2 分'].includes(review.human)) {
+      if (!review.reason?.trim() && review.accuracy !== 'disagree') errors.push('请说明策略组合评分理由');
+    }
     return errors;
+  }
+
+  function issueDistribution(rows) {
+    const problems = rows.filter(row => row.submitted && isBad(row));
+    const total = new Set(problems.map(row => row.caseId)).size;
+    const distribution = (key, label) => grouped(problems, key).map(group => {
+      const count = new Set(group.map(row => row.caseId)).size;
+      return { name: label(group[0]), count, value: count / total * 100 };
+    }).sort((first, second) => second.count - first.count);
+    return { total, issues: distribution(row => `${row.module}:${row.title || row.itemId || row.key}`, row => row.title || row.itemId || row.key), modules: distribution('module', row => row.module) };
+  }
+
+  function strategyDiversity(rows) {
+    const cases = grouped(rows.filter(row => row.submitted && row.module === 'M4' && row.selectedStrategies?.length), 'caseId');
+    const adopted = cases.flatMap(group => [...new Map(group[0].selectedStrategies.map(strategy => [strategy.id, strategy])).values()]);
+    const strategies = grouped(adopted, 'id').map(group => ({ id: group[0].id, name: group[0].title || group[0].id, count: group.length, value: group.length / cases.length * 100 })).sort((first, second) => second.count - first.count);
+    return { distinct: strategies.length, cases: cases.length, strategies };
+  }
+
+  function materialSegments(rows) {
+    return ['direct', 'fallback', 'none'].map(mode => {
+      const selected = rows.filter(row => row.submitted && row.module === 'M3' && row.materialMode === mode);
+      const materials = selected.filter(row => row.key === 'materialGrade');
+      const relevance = ratio(materials.map(row => row.human), ['Grade 4', 'Grade 5'], ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5']);
+      return { mode, cases: new Set(selected.map(row => row.caseId)).size, relevance, usage: null };
+    });
+  }
+
+  function exportBundle(rows, cases, packs, submissions) {
+    const selectedIds = new Set(rows.filter(row => row.submitted).map(row => row.caseId));
+    const selected = cases.filter(record => selectedIds.has(record.id) && submissions[record.id]);
+    const packIds = new Set(selected.map(record => record.packId));
+    return structuredClone({
+      schema: 2,
+      notice: '交互原型 · 模拟数据。数据集与模型版本分别保存；全部节点输入输出随 Case 导出，人工结果只使用已提交快照。',
+      packs: packs.filter(pack => packIds.has(pack.id)),
+      cases: selected.map(record => ({ ...(submissions[record.id].dataSnapshot || record), review: submissions[record.id] })),
+      badcaseIds: [...new Set(rows.filter(row => row.submitted && (row.caseBad || isBad(row))).map(row => row.caseId))],
+      report: { summary: summarize(rows), issues: issueDistribution(rows), strategyDiversity: strategyDiversity(rows), materialSegments: materialSegments(rows), metrics: Object.fromEntries(['M1', 'M2', 'M3', 'M4', 'M5', 'M6'].map(module => [module, moduleMetrics(rows, module)])) },
+    });
+  }
+
+  function regressionReport(cases, packs, submissions, packId, version) {
+    const pack = packs.find(record => record.id === packId);
+    const records = cases.filter(record => record.packId === packId);
+    const rows = records.map(record => {
+      const result = { caseId: record.id, name: record.name, stage: record.stage, status: '', agreed: 0, judged: 0, insufficient: 0, differences: [], comparisons: [] };
+      if (!pack || pack.version !== version) return { ...result, status: '缺少版本输出' };
+      if (record.evalStatus !== 'completed') return { ...result, status: '初评失败' };
+      const submission = submissions[record.id];
+      if (!submission) return { ...result, status: '未提交人工标注' };
+      const snapshot = submission.snapshot || {};
+      Object.entries(record.nodes).filter(([module]) => submission.reviewedModules?.includes(module)).forEach(([module, node]) => {
+        node.items.forEach(item => {
+          const review = snapshot[module]?.[item.id];
+          if (!review?.accuracy) return;
+          const comparison = { module, itemId: item.id, title: item.title, unit: item.unit, key: item.key, expectedCount: item.expectedCount, requestId: item.requestId, result: item.result, returnedCount: item.returnedCount, position: item.position, pointId: item.pointId, ai: item.ai, human: review.human, reason: review.reason, submitted: true, caseId: record.id };
+          const comparable = ['agree', 'disagree'].includes(review.accuracy) && !insufficientValues.has(review.human) && !insufficientValues.has(item.ai);
+          if (!comparable) result.insufficient += 1;
+          else {
+            result.judged += 1;
+            if (item.ai === review.human) result.agreed += 1;
+            else result.differences.push(comparison);
+          }
+          result.comparisons.push({ ...comparison, accuracy: comparable ? item.ai === review.human ? 'agree' : 'disagree' : 'unknown' });
+        });
+      });
+      result.status = !result.judged ? '资料不足' : result.differences.length ? '存在差异' : result.insufficient ? '部分资料不足' : '与人工一致';
+      return result;
+    });
+    const judged = rows.reduce((total, row) => total + row.judged, 0);
+    const agreed = rows.reduce((total, row) => total + row.agreed, 0);
+    return { packId, datasetVersion: pack?.datasetVersion, version, total: records.length, compared: rows.filter(row => row.judged).length, missing: rows.filter(row => row.status === '缺少版本输出').length, failed: rows.filter(row => row.status === '初评失败').length, differences: rows.filter(row => row.differences.length).length, insufficient: rows.reduce((total, row) => total + row.insufficient, 0), judged, agreed, agreement: judged ? agreed / judged * 100 : null, rows };
   }
 
   function moduleMetrics(rows, module) {
@@ -141,7 +215,7 @@
       ];
     }
     if (module === 'M4') return [
-      { title: '当前策略适配等级分布', key: 'grade', distribution: true, ...Object.fromEntries(['human', 'ai'].map(field => [field, { value: null, numerator: null, denominator: selected.filter(row => row.key === 'grade' && row[field].startsWith('Grade ')).length, grades: [1, 2, 3, 4, 5].map(grade => selected.filter(row => row.key === 'grade' && row[field] === `Grade ${grade}`).length) }])), note: '展示 Grade 1–5 分布；适配阈值待确认，不生成策略适配通过率。' },
+      { title: '客户策略组合三档分布', key: 'grade', distribution: true, ...Object.fromEntries(['human', 'ai'].map(field => [field, { value: null, numerator: null, denominator: selected.filter(row => row.key === 'grade' && ['1 分', '2 分', '3 分'].includes(row[field])).length, grades: [1, 2, 3].map(grade => selected.filter(row => row.key === 'grade' && row[field] === `${grade} 分`).length) }])), note: '一个客户的实际策略组合计一次：1 分需优化，2 分适配但有更优，3 分适配且最优；2 分单列优选提升，badcase 入集口径待确认。' },
       regular('策略查询合理率', 'strategyQuery', ['合理'], ['合理', '不合理'], '按查询统计，证据不足单列。'),
       { title: '适用策略候选召回率', key: 'strategyCoverage', human: averageCoverage(selected, 'human', 'strategyCoverage'), ai: averageCoverage(selected, 'ai', 'strategyCoverage'), note: '先按 Case 计算参考策略覆盖比例，再取平均；审查集合不完整不统计。' },
       regular('打法分支与动作正确率', 'branch', ['正确'], ['正确', '错误'], '按实际采用的分支统计，不以同策略 ID 代替分支正确性。'),
@@ -159,6 +233,6 @@
     ];
   }
 
-  root.AnnotationEngine = { isBad, summarize, filterRows, ratio, statusMetric, materialMetrics, validateReview, moduleMetrics, insufficientValues };
+  root.AnnotationEngine = { isBad, summarize, filterRows, ratio, statusMetric, materialMetrics, validateReview, moduleMetrics, issueDistribution, strategyDiversity, materialSegments, exportBundle, regressionReport, insufficientValues };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.AnnotationEngine;
 })(globalThis);
